@@ -1,11 +1,9 @@
-
-'use client';
+"use client";
 
 import InputComponent from "@/components/FormElements/inputComponent";
 import SelectComponent from "@/components/FormElements/SelectComponent";
 import TileComponent from "@/components/FormElements/TileComponent";
 import { toast } from "react-toastify";
-import ComponentLevelLoader from "@/components/Loader/componentlevel";
 import { addNewProduct, updateAProduct } from "@/services/product";
 import { GlobalContext } from "@/context";
 import { useRouter } from "next/navigation";
@@ -25,32 +23,31 @@ import {
 } from "firebase/storage";
 
 const firebaseApp = initializeApp(firebaseConfig);
-const firebaseStorage = getStorage(firebaseApp, firebaseStorageURL);
+const storage = getStorage(firebaseApp, firebaseStorageURL);
 
-const generateFileName = (file) => {
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).slice(2, 12);
-    return `${file.name}-${timestamp}-${randomString}`;
+const createFileName = (file) => {
+    const time = Date.now();
+    const randomPart = Math.random().toString(36).substring(2, 15);
+    return `${file.name}-${time}-${randomPart}`;
 };
 
-async function uploadFileToFirebase(file) {
-    console.log("Uploading file:", file)
-    const filename = generateFileName(file);
-    const fileRef = ref(firebaseStorage, `ecommerce/${filename}`);
-    const uploadTask = uploadBytesResumable(fileRef, file);
+async function uploadImageToFirebase(file) {
+    const fileName = createFileName(file);
+    const storageRef = ref(storage, `products/${fileName}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
 
     return new Promise((resolve, reject) => {
         uploadTask.on(
             "state_changed",
-            (snapshot) => {},
-            (error) => {
-                console.error('Failed to upload', error);
+            snapshot => {},
+            error => {
+                console.error('Upload failed:', error);
                 reject(error);
             },
             async () => {
                 try {
-                    const url = await getDownloadURL(uploadTask.snapshot.ref);
-                    resolve(url);
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    resolve(downloadURL);
                 } catch (error) {
                     reject(error);
                 }
@@ -59,95 +56,92 @@ async function uploadFileToFirebase(file) {
     });
 }
 
-const defaultFormData = {
+const initialProductDetails = {
     name: "",
-    price: 0,
+    price: "",
     category: "men",
     sizes: [],
     imageUrl: "",
 };
 
-export default function ProductManager() {
-    const [productData, setProductData] = useState(defaultFormData);
+export default function ProductEditor() {
+    const [productDetails, setProductDetails] = useState(initialProductDetails);
     const router = useRouter();
-    const { componentLevelLoader, setComponentLevelLoader, currentUpdatedProduct } = useContext(GlobalContext);
+    const { currentUpdatedProduct } = useContext(GlobalContext);
 
     useEffect(() => {
         if (currentUpdatedProduct) {
-            setProductData(currentUpdatedProduct);
+            setProductDetails(currentUpdatedProduct);
         }
     }, [currentUpdatedProduct]);
 
-    async function handleFileUpload(event) {
+    const handleImageUpload = async (event) => {
         const file = event.target.files[0];
         if (file) {
-            const imageUrl = await uploadFileToFirebase(file);
-            console.log("Download URL:", imageUrl);
-            setProductData({...productData, imageUrl});
+            const imageUrl = await uploadImageToFirebase(file);
+            setProductDetails({ ...productDetails, imageUrl });
         }
-    }
+    };
 
-    function toggleSizeSelection(selectedSize) {
-        const updatedSizes = productData.sizes.includes(selectedSize)
-            ? productData.sizes.filter(size => size !== selectedSize)
-            : [...productData.sizes, selectedSize];
-        setProductData({...productData, sizes: updatedSizes});
-    }
+    const handleSizeChange = (size) => {
+        const updatedSizes = productDetails.sizes.includes(size)
+            ? productDetails.sizes.filter(size => size !== size)
+            : [...productDetails.sizes, size];
+        setProductDetails({ ...productDetails, sizes: updatedSizes });
+    };
 
-    async function submitProduct() {
-        setComponentLevelLoader(true);
+    const saveProduct = async () => {
         const response = currentUpdatedProduct
-            ? await updateAProduct(productData)
-            : await addNewProduct(productData);
+            ? await updateAProduct(productDetails)
+            : await addNewProduct(productDetails);
 
         if (response.success) {
-            toast.success('Product processed successfully!');
-            router.push('/admin-view/all-products');
-            setComponentLevelLoader(false);
-            setProductData(defaultFormData);
+            toast.success('Product saved successfully!');
+            router.push('/admin-view/products');
+            setProductDetails(initialProductDetails);
         } else {
-            toast.error(response.message);
-            setComponentLevelLoader(false);
+            toast.error('Error saving product: ' + response.message);
         }
-    }
+    };
 
     return (
-        <div className="bg-white shadow-2xl rounded-xl p-10 m-5">
-            <div className="space-y-8">
+        <div className="bg-gray-100 p-8 rounded-lg shadow-lg max-w-4xl mx-auto my-10">
+            <h1 className="text-xl text-black font-bold mb-5">{currentUpdatedProduct ? "Edit Product" : "Add New Product"}</h1>
+            <div className="space-y-6">
                 <input
                     type="file"
                     accept="image/*"
-                    onChange={handleFileUpload}
+                    onChange={handleImageUpload}
+                    className="file:mr-4 text-black file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
                 />
-                <div>
-                    <label>Sizes Available:</label>
-                    <TileComponent selected={productData.sizes} onClick={toggleSizeSelection} data={AvailableSizes} />
-                </div>
                 {adminAddProductformControls.map(control => (
                     control.componentType === "input" ? (
                         <InputComponent
                             key={control.id}
                             {...control}
-                            value={productData[control.id]}
-                            onChange={(e) => setProductData({...productData, [control.id]: e.target.value})}
+                            value={productDetails[control.id]}
+                            onChange={(e) => setProductDetails({...productDetails, [control.id]: e.target.value})}
                         />
                     ) : (
                         <SelectComponent
                             key={control.id}
                             {...control}
-                            value={productData[control.id]}
-                            onChange={(e) => setProductData({...productData, [control.id]: e.target.value})}
+                            value={productDetails[control.id]}
+                            onChange={(e) => setProductDetails({...productDetails, [control.id]: e.target.value})}
                         />
                     )
                 ))}
+                <div>
+                    <label className="block mb-2  text-sm font-medium text-gray-900">Select Sizes:</label>
+                    <TileComponent selected={productDetails.sizes} onClick={handleSizeChange} data={AvailableSizes} />
+                </div>
                 <button
-                    onClick={submitProduct}
-                    className="w-full bg-black text-white uppercase font-medium px-6 py-4"
+                    onClick={saveProduct}
+                    className="w-full bg-blue-600 text-black py-3 px-6 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors duration-300"
                 >
-                    {componentLevelLoader ? <ComponentLevelLoader text="Processing..." color="#ffffff" /> : (currentUpdatedProduct ? "Update Product" : "Add Product")}
+                    {currentUpdatedProduct ? "Update Product" : "Add Product"}
                 </button>
             </div>
         </div>
     );
 }
-

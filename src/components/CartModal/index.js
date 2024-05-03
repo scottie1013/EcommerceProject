@@ -1,14 +1,14 @@
 "use client";
 
-import { Fragment, useContext, useEffect } from "react";
-import CommonModal from "../CommonModal";
+import ComponentLevelLoader from "@/components/Loader/componentlevel";
 import { GlobalContext } from "@/context";
 import { deleteFromCart, getAllCartItems } from "@/services/cart";
 import { toast } from "react-toastify";
-import ComponentLevelLoader from "../Loader/componentlevel";
 import { useRouter } from "next/navigation";
+import { useContext, useEffect } from "react";
+import CommonModal from "../CommonModal";
 
-export default function CartModal() {
+export default function ShoppingCartModal() {
   const {
     showCartModal,
     setShowCartModal,
@@ -18,13 +18,12 @@ export default function CartModal() {
     setComponentLevelLoader,
     componentLevelLoader,
   } = useContext(GlobalContext);
+  const router = useRouter();
 
-  const navigation = useRouter();
-
-  async function fetchCartItems() {
+  async function retrieveCartItems() {
     const response = await getAllCartItems(user?._id);
     if (response.success) {
-      const formattedItems = response.data.map((item) => ({
+      const updatedItems = response.data.map((item) => ({
         ...item,
         productID: {
           ...item.productID,
@@ -33,24 +32,23 @@ export default function CartModal() {
             : item.productID.price,
         },
       }));
-      setCartItems(formattedItems);
-      localStorage.setItem("cartItems", JSON.stringify(formattedItems));
+      setCartItems(updatedItems);
+      localStorage.setItem("cartItems", JSON.stringify(updatedItems));
     }
-    console.log(response);
   }
 
   useEffect(() => {
-    if (user) fetchCartItems();
+    if (user) retrieveCartItems();
   }, [user]);
 
-  async function removeCartItem(cartItemId) {
+  async function handleCartItemRemoval(cartItemId) {
     setComponentLevelLoader({ loading: true, id: cartItemId });
     const result = await deleteFromCart(cartItemId);
 
     if (result.success) {
       setComponentLevelLoader({ loading: false, id: "" });
       toast.success(result.message);
-      fetchCartItems();
+      retrieveCartItems();
     } else {
       toast.error(result.message);
       setComponentLevelLoader({ loading: false, id: cartItemId });
@@ -64,35 +62,33 @@ export default function CartModal() {
       setShow={setShowCartModal}
       mainContent={
         cartItems.length > 0 ? (
-          <ul role="list" className="-my-6 divide-y divide-gray-300">
+          <ul role="list" className="-my-6 divide-y divide-gray-200">
             {cartItems.map((cartItem) => (
               <li key={cartItem.id} className="flex py-6">
-                <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border border-gray-200">
+                <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border border-gray-300">
                   <img
                     src={cartItem.productID.imageUrl}
-                    alt="Cart Item"
+                    alt="Product in Cart"
                     className="h-full w-full object-cover object-center"
                   />
                 </div>
                 <div className="ml-4 flex flex-1 flex-col">
-                  <div>
-                    <div className="flex justify-between text-base font-medium text-gray-900">
-                      <h3>{cartItem.productID.name}</h3>
-                    </div>
-                    <p className="mt-1 text-sm text-gray-600">
+                  <div className="flex justify-between text-base font-medium text-gray-800">
+                    <h3>{cartItem.productID.name}</h3>
+                    <p className="mt-1 text-sm text-gray-500">
                       ${cartItem.productID.price}
                     </p>
                   </div>
                   <div className="flex flex-1 items-end justify-between text-sm">
                     <button
                       type="button"
-                      className="font-medium text-yellow-600 sm:order-2"
-                      onClick={() => removeCartItem(cartItem._id)}
+                      className="text-red-600 font-medium"
+                      onClick={() => handleCartItemRemoval(cartItem._id)}
                     >
                       {componentLevelLoader.loading && componentLevelLoader.id === cartItem._id ? (
                         <ComponentLevelLoader
-                          text={"Removing"}
-                          color={"#000000"}
+                          text="Removing..."
+                          color="#ffffff"
                           loading={true}
                         />
                       ) : (
@@ -104,39 +100,43 @@ export default function CartModal() {
               </li>
             ))}
           </ul>
-        ) : null
+        ) : (
+          <p className="text-center text-gray-600">Your cart is empty.</p>
+        )
       }
       buttonComponent={
-        <Fragment>
+        <div>
           <button
             type="button"
             onClick={() => {
-              navigation.push("/cart");
+              router.push("/cart");
               setShowCartModal(false);
             }}
-            className="mt-1.5 w-full inline-block bg-black text-white px-5 py-3 text-xs font-medium uppercase tracking-wide"
+            className="mt-1.5 mb-2 w-full bg-blue-500 text-white py-3 text-xs uppercase font-semibold tracking-wide rounded hover:bg-blue-600 transition duration-300"
           >
-            Go To Cart
+            View Cart
           </button>
           <button
             disabled={cartItems.length === 0}
             type="button"
             onClick={() => {
-              navigation.push("/checkout");
+              router.push("/checkout");
               setShowCartModal(false);
             }}
-            className="mt-1.5 w-full inline-block bg-black text-white px-5 py-3 text-xs font-medium uppercase tracking-wide disabled:opacity-50"
+            className="mb-2 w-full bg-green-500 text-white py-3 text-xs uppercase font-semibold tracking-wide rounded hover:bg-green-600 transition duration-300 disabled:bg-gray-400"
           >
-            Checkout
+            Proceed to Checkout
           </button>
-          <div className="mt-6 flex justify-center text-center text-sm text-gray-600">
-            <button type="button" className="font-medium text-grey">
-              Continue 
+          <div className="mt-4 flex justify-center text-center text-sm text-gray-500">
+            <button type="button" className="font-medium text-indigo-600 hover:underline">
+              Continue Shopping
               <span aria-hidden="true"> &rarr;</span>
             </button>
           </div>
-        </Fragment>
+        </div>
       }
     />
   );
 }
+
+
